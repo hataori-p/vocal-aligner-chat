@@ -86,6 +86,7 @@
     function clearChat() {
         chatHistory =[];
         historyEl.innerHTML = '<div class="message ai-msg">Chat cleared. How else can I help?</div>';
+        inputEl.focus();
     }
 
     clearBtn.addEventListener('click', clearChat);
@@ -145,12 +146,16 @@
             inputEl.disabled = false;
             sendBtn.disabled = false;
             clearBtn.disabled = false;
+            inputEl.focus();
         }
     });
 
     inputEl.addEventListener('keypress', function (e) {
         if (e.key === 'Enter' && !sendBtn.disabled) sendBtn.click();
     });
+
+    // Focus on load
+    inputEl.focus();
 </script>
 
 </body>
