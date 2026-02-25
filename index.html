@@ -15,7 +15,7 @@
         .ai-msg { background: #45475a; color: #cdd6f4; align-self: flex-start; border-bottom-left-radius: 0; }
         
         #input-container { background: #1e1e2e; border-top: 1px solid #45475a; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
-        .turnstile-wrapper { display: flex; justify-content: center; }
+        .turnstile-wrapper { display: flex; justify-content: center; height: 0; overflow: hidden; }
         
         #input-area { display: flex; gap: 10px; }
         input[type="text"] { flex-grow: 1; padding: 12px; border: 1px solid #45475a; border-radius: 5px; background: #313244; color: white; outline: none; }
@@ -46,9 +46,10 @@
         </div>
         
         <div id="input-area">
-            <input type="text" id="user-input" placeholder="Verify you are human to chat..." disabled>
-            <button id="send-btn" disabled>Send</button>
-            <button id="clear-btn" title="Clear Chat" disabled>🗑️</button>
+            <!-- Input is enabled by default now -->
+            <input type="text" id="user-input" placeholder="Ask a question about VocalAlignerGUI...">
+            <button id="send-btn">Send</button>
+            <button id="clear-btn" title="Clear Chat">🗑️</button>
         </div>
     </div>
     
@@ -70,11 +71,8 @@
     const historyEl = document.getElementById('chat-history');
 
     function onTurnstileSuccess(token) {
+        // Just save the token quietly
         turnstileToken = token;
-        inputEl.disabled = false;
-        sendBtn.disabled = false;
-        clearBtn.disabled = false;
-        inputEl.placeholder = "Ask a question about VocalAlignerGUI...";
     }
 
     function addMessage(role, text) {
@@ -94,7 +92,13 @@
     
     sendBtn.addEventListener('click', async () => {
         const text = inputEl.value.trim();
-        if (!text || !turnstileToken) return;
+
+        // Security Check: Has Cloudflare finished loading in the background?
+        if (!turnstileToken) {
+            alert("Still verifying security... please click Send again in a second.");
+            return;
+        }
+        if (!text) return;
 
         addMessage('user', text);
         chatHistory.push({ role: "user", content: text });
@@ -137,10 +141,10 @@
             turnstile.reset();
             turnstileToken = "";
             
-            inputEl.placeholder = "Verify to send next message...";
             sendBtn.innerText = "Send";
-            inputEl.disabled = true;
-            sendBtn.disabled = true;
+            inputEl.disabled = false;
+            sendBtn.disabled = false;
+            clearBtn.disabled = false;
         }
     });
 
@@ -151,4 +155,3 @@
 
 </body>
 </html>
-
