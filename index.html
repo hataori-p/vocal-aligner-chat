@@ -138,20 +138,11 @@
             addMessage('assistant', `❌ Connection Error: ${error.message}`);
             chatHistory.pop(); 
         } finally {
-            // RESTORE UI
             sendBtn.innerText = "Send";
             inputEl.disabled = false;
             sendBtn.disabled = false;
             clearBtn.disabled = false;
-            
-            // Reset Turnstile first, then focus after it has fully settled
-            if (widgetId !== null) turnstile.reset(widgetId);
-            
-            // 350ms gives Turnstile's reset iframe activity time to complete
-            // before we assert focus, preventing it from being stolen back
-            setTimeout(() => {
-                inputEl.focus();
-            }, 350);
+            inputEl.focus();
         }
     }
 
@@ -178,12 +169,11 @@
 
         if (!text) return;
 
-        // Capture text and clear input immediately at click time,
-        // before Turnstile execution steals focus
         pendingMessageText = text;
         inputEl.value = '';
 
         if (widgetId !== null) {
+            turnstile.reset(widgetId);      // reset lazily here, not after response
             turnstile.execute(widgetId);
         } else {
             pendingMessageText = null;
