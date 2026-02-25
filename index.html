@@ -70,10 +70,18 @@
     const clearBtn = document.getElementById('clear-btn');
     const historyEl = document.getElementById('chat-history');
 
-    // 1. Focus input immediately when Turnstile validates (runs on load mostly)
+    // --- FIX: Aggressive Focus Logic ---
     function onTurnstileSuccess(token) {
         turnstileToken = token;
+        
+        // Attempt 1: Focus immediately
         inputEl.focus();
+
+        // Attempt 2: Force focus again after 600ms 
+        // This overrides the Turnstile iframe if it steals focus late
+        setTimeout(() => {
+            inputEl.focus();
+        }, 600);
     }
 
     function addMessage(role, text) {
@@ -85,9 +93,10 @@
     }
     
     function clearChat() {
-        chatHistory =[];
+        chatHistory = [];
         historyEl.innerHTML = '<div class="message ai-msg">Chat cleared. How else can I help?</div>';
-        inputEl.focus();
+        // Resetting will trigger onTurnstileSuccess, which handles the focus
+        if (typeof turnstile !== 'undefined') turnstile.reset();
     }
 
     clearBtn.addEventListener('click', clearChat);
@@ -139,23 +148,19 @@
             addMessage('assistant', `❌ Connection Error: ${error.message}`);
             chatHistory.pop(); 
         } finally {
-            // 2. Re-enable inputs FIRST
             sendBtn.innerText = "Send";
             inputEl.disabled = false;
             sendBtn.disabled = false;
             clearBtn.disabled = false;
             
-            // 3. Reset Turnstile (this causes the focus theft)
+            // Clear token and reset widget
+            turnstileToken = "";
             if (typeof turnstile !== 'undefined') {
                 turnstile.reset();
             }
-            turnstileToken = "";
-            
-            // 4. Force focus back to input after a short delay
-            // This overrides Turnstile trying to steal focus after reset
-            setTimeout(() => {
-                inputEl.focus();
-            }, 100); 
+            // Note: We don't need explicit focus here because 
+            // turnstile.reset() triggers onTurnstileSuccess, 
+            // which runs the Double Tap focus logic above.
         }
     });
 
@@ -163,8 +168,10 @@
         if (e.key === 'Enter' && !sendBtn.disabled) sendBtn.click();
     });
 
-    // Try to focus on initial load too
-    inputEl.focus();
+    // Force focus on initial page load
+    window.onload = function() {
+        setTimeout(() => inputEl.focus(), 500);
+    };
 </script>
 
 </body>
