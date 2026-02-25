@@ -15,6 +15,7 @@
         .ai-msg { background: #45475a; color: #cdd6f4; align-self: flex-start; border-bottom-left-radius: 0; }
         
         #input-container { background: #1e1e2e; border-top: 1px solid #45475a; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+        /* Hide the turnstile widget visually */
         .turnstile-wrapper { display: flex; justify-content: center; height: 0; overflow: hidden; }
         
         #input-area { display: flex; gap: 10px; }
@@ -28,7 +29,6 @@
         #clear-btn { background-color: #f38ba8; padding: 12px 15px; }
         #clear-btn:hover { background-color: #eba0ac; }
         
-        /* YOUR EXACT ORIGINAL PRIVACY NOTE CSS */
         #privacy-note { padding: 8px 15px; text-align: center; font-size: 0.75em; color: #a6adc8; background-color: #1e1e2e; margin: 0;}
     </style>
 </head>
@@ -42,24 +42,24 @@
     <div id="input-container">
         <!-- Turnstile Widget -->
         <div class="turnstile-wrapper">
+            <!-- Ensure your sitekey is correct here -->
             <div class="cf-turnstile" data-sitekey="0x4AAAAAACiAiEmo3_WVLol_" data-callback="onTurnstileSuccess"></div>
         </div>
         
         <div id="input-area">
-            <!-- Input is enabled by default now -->
             <input type="text" id="user-input" placeholder="Ask a question about VocalAlignerGUI...">
             <button id="send-btn">Send</button>
             <button id="clear-btn" title="Clear Chat">🗑️</button>
         </div>
     </div>
     
-    <!-- YOUR EXACT ORIGINAL PRIVACY NOTE HTML -->
     <div id="privacy-note">
         <strong>Privacy Note:</strong> Messages are sent to OpenRouter for processing. Do not send private or sensitive information.
     </div>
 </div>
 
 <script>
+    // Make sure this matches your deployed Cloudflare Worker URL exactly
     const WORKER_URL = "https://vocal-aligner-chat.hataori.workers.dev"; 
     
     let chatHistory =[];
@@ -70,9 +70,10 @@
     const clearBtn = document.getElementById('clear-btn');
     const historyEl = document.getElementById('chat-history');
 
+    // 1. Focus input immediately when Turnstile validates (runs on load mostly)
     function onTurnstileSuccess(token) {
-        // Just save the token quietly
         turnstileToken = token;
+        inputEl.focus();
     }
 
     function addMessage(role, text) {
@@ -94,7 +95,6 @@
     sendBtn.addEventListener('click', async () => {
         const text = inputEl.value.trim();
 
-        // Security Check: Has Cloudflare finished loading in the background?
         if (!turnstileToken) {
             alert("Still verifying security... please click Send again in a second.");
             return;
@@ -139,14 +139,23 @@
             addMessage('assistant', `❌ Connection Error: ${error.message}`);
             chatHistory.pop(); 
         } finally {
-            turnstile.reset();
-            turnstileToken = "";
-            
+            // 2. Re-enable inputs FIRST
             sendBtn.innerText = "Send";
             inputEl.disabled = false;
             sendBtn.disabled = false;
             clearBtn.disabled = false;
-            inputEl.focus();
+            
+            // 3. Reset Turnstile (this causes the focus theft)
+            if (typeof turnstile !== 'undefined') {
+                turnstile.reset();
+            }
+            turnstileToken = "";
+            
+            // 4. Force focus back to input after a short delay
+            // This overrides Turnstile trying to steal focus after reset
+            setTimeout(() => {
+                inputEl.focus();
+            }, 100); 
         }
     });
 
@@ -154,7 +163,7 @@
         if (e.key === 'Enter' && !sendBtn.disabled) sendBtn.click();
     });
 
-    // Focus on load
+    // Try to focus on initial load too
     inputEl.focus();
 </script>
 
