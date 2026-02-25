@@ -14,8 +14,8 @@
         
         #input-container { background: #1e1e2e; border-top: 1px solid #45475a; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
         
-        /* Container for the invisible widget (keeps it out of flow) */
-        #turnstile-widget { height: 0; width: 0; overflow: hidden; position: absolute; }
+        /* Keeps the widget technically visible to the browser, but hidden from user */
+        #turnstile-widget { position: absolute; opacity: 0; pointer-events: none; }
         
         #input-area { display: flex; gap: 10px; }
         input[type="text"] { flex-grow: 1; padding: 12px; border: 1px solid #45475a; border-radius: 5px; background: #313244; color: white; outline: none; }
@@ -55,31 +55,44 @@
 </div>
 
 <script>
+    // Configuration
     const WORKER_URL = "https://vocal-aligner-chat.hataori.workers.dev"; 
-    const SITE_KEY = "0x4AAAAAACiAiEmo3_WVLol_"; // Your Site Key
+    const SITE_KEY = "0x4AAAAAACiAiEmo3_WVLol_"; 
 
+    // State
     let chatHistory = [];
-    let widgetId = null; // We will store the Turnstile ID here
-    
-    const inputEl = document.getElementById('user-input');
-    const sendBtn = document.getElementById('send-btn');
-    const clearBtn = document.getElementById('clear-btn');
-    const historyEl = document.getElementById('chat-history');
+    let widgetId = null; 
 
-    // 3. EXPLICIT RENDER FUNCTION (Runs automatically when API loads)
-    window.onloadTurnstileCallback = function () {
-        widgetId = turnstile.render('#turnstile-widget', {
-            sitekey: SITE_KEY,
-            callback: handleTurnstileToken, // This runs ONLY after execute() succeeds
-            execution: 'execute',          // MANUAL MODE: Waits for us to call .execute()
-            appearance: 'interaction-only' // Hides it as much as possible
-        });
+    // 2. TURNSTILE LOADER
+    window.onTurnstileLoad = function () {
+        console.log("Turnstile API loaded. Initializing...");
+        
+        // We use a tiny delay to ensure the div #turnstile-widget is in the DOM
+        setTimeout(() => {
+            const widgetDiv = document.getElementById('turnstile-widget');
+            if (!widgetDiv) {
+                console.error("Error: Widget container not found.");
+                return;
+            }
+            
+            widgetId = turnstile.render('#turnstile-widget', {
+                sitekey: SITE_KEY,
+                callback: handleTurnstileToken, // Success function
+                execution: 'execute',          // MANUAL mode (No focus theft on load)
+                appearance: 'interaction-only' 
+            });
+            console.log("Widget rendered with ID:", widgetId);
+        }, 100);
     };
-
-    // 4. THIS RUNS ONLY AFTER TOKEN IS GENERATED
+    
+    // 3. HANDLE SUCCESSFUL TOKEN
     async function handleTurnstileToken(token) {
+        console.log("Security check passed. Sending...");
+        
+        const inputEl = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+        const clearBtn = document.getElementById('clear-btn');
         const text = inputEl.value.trim();
-        if (!text) return; // Should not happen given logic below, but safety first
 
         addMessage('user', text);
         chatHistory.push({ role: "user", content: text });
@@ -119,66 +132,72 @@
             addMessage('assistant', `❌ Connection Error: ${error.message}`);
             chatHistory.pop(); 
         } finally {
-            // 5. CLEANUP & REFOCUS
+            // RESTORE UI
             sendBtn.innerText = "Send";
             inputEl.disabled = false;
             sendBtn.disabled = false;
             clearBtn.disabled = false;
             
-            // Reset the widget so it's ready for the next message
+            // RESET WIDGET
             if (widgetId !== null) turnstile.reset(widgetId);
             
-            // Force focus back to input
-            inputEl.focus();
+            // FORCE FOCUS BACK
+            setTimeout(() => inputEl.focus(), 100);
         }
     }
 
+    // Helper Functions
     function addMessage(role, text) {
+        const historyEl = document.getElementById('chat-history');
         const div = document.createElement('div');
         div.className = `message ${role === 'user' ? 'user-msg' : 'ai-msg'}`;
         div.innerHTML = text.replace(/\n/g, '<br>'); 
         historyEl.appendChild(div);
         historyEl.scrollTop = historyEl.scrollHeight;
     }
-    
+
     function clearChat() {
         chatHistory = [];
-        historyEl.innerHTML = '<div class="message ai-msg">Chat cleared. How else can I help?</div>';
+        document.getElementById('chat-history').innerHTML = '<div class="message ai-msg">Chat cleared. How else can I help?</div>';
         if (widgetId !== null) turnstile.reset(widgetId);
-        inputEl.focus();
+        document.getElementById('user-input').focus();
     }
 
-    // 6. BUTTON TRIGGER
-    async function handleSendClick() {
+    function handleSendClick() {
+        const inputEl = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
         const text = inputEl.value.trim();
+
         if (!text) return;
 
-        // Disable input immediately to prevent double-send
-        sendBtn.disabled = true;
-        
-        // EXECUTE TURNSTILE MANUALY
-        // This triggers the challenge -> then calls 'handleTurnstileToken'
+        // Trigger the Invisible Security Check
         if (widgetId !== null) {
             turnstile.execute(widgetId);
         } else {
-            alert("Security widget loading... please try again.");
-            sendBtn.disabled = false;
+            alert("Security widget loading... please wait 2 seconds.");
         }
     }
 
-    sendBtn.addEventListener('click', handleSendClick);
-    clearBtn.addEventListener('click', clearChat);
+    // Event Listeners (Run when DOM is ready)
+    window.addEventListener('DOMContentLoaded', () => {
+        const inputEl = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+        const clearBtn = document.getElementById('clear-btn');
 
-    inputEl.addEventListener('keypress', function (e) {
-        if (e.key === 'Enter' && !sendBtn.disabled) handleSendClick();
+        sendBtn.addEventListener('click', handleSendClick);
+        clearBtn.addEventListener('click', clearChat);
+        
+        inputEl.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter' && !sendBtn.disabled) handleSendClick();
+        });
+        
+        inputEl.focus();
     });
 
-    // Initial focus
-    inputEl.focus();
 </script>
 
-<!-- 5. LOAD TURNSTILE API LAST with CALLBACK PARAMETER -->
-<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onloadTurnstileCallback&render=explicit" async defer></script>
+<!-- 4. LOAD CLOUDFLARE SCRIPT (With Correct ONLOAD parameter) -->
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad&render=explicit" async defer></script>
 
 </body>
 </html>
