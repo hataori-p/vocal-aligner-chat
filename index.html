@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VocalAlignerGUI Support</title>
-    <!-- Cloudflare Turnstile Script -->
-    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    <!-- 1. LOAD TURNSTILE WITH EXPLICIT RENDERING -->
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #1e1e2e; color: #cdd6f4; display: flex; justify-content: center; padding: 20px; }
         #chat-container { width: 100%; max-width: 600px; background: #313244; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); display: flex; flex-direction: column; overflow: hidden; height: 85vh; }
@@ -15,8 +15,9 @@
         .ai-msg { background: #45475a; color: #cdd6f4; align-self: flex-start; border-bottom-left-radius: 0; }
         
         #input-container { background: #1e1e2e; border-top: 1px solid #45475a; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
-        /* Hide the turnstile widget visually */
-        .turnstile-wrapper { display: flex; justify-content: center; height: 0; overflow: hidden; }
+        
+        /* Container for the invisible widget (keeps it out of flow) */
+        #turnstile-widget { height: 0; width: 0; overflow: hidden; position: absolute; }
         
         #input-area { display: flex; gap: 10px; }
         input[type="text"] { flex-grow: 1; padding: 12px; border: 1px solid #45475a; border-radius: 5px; background: #313244; color: white; outline: none; }
@@ -40,11 +41,8 @@
     </div>
     
     <div id="input-container">
-        <!-- Turnstile Widget -->
-        <div class="turnstile-wrapper">
-            <!-- Ensure your sitekey is correct here -->
-            <div class="cf-turnstile" data-sitekey="0x4AAAAAACiAiEmo3_WVLol_" data-callback="onTurnstileSuccess"></div>
-        </div>
+        <!-- 2. EMPTY CONTAINER FOR WIDGET (Rendered via JS) -->
+        <div id="turnstile-widget"></div>
         
         <div id="input-area">
             <input type="text" id="user-input" placeholder="Ask a question about VocalAlignerGUI...">
@@ -59,56 +57,31 @@
 </div>
 
 <script>
-    // Make sure this matches your deployed Cloudflare Worker URL exactly
     const WORKER_URL = "https://vocal-aligner-chat.hataori.workers.dev"; 
-    
-    let chatHistory =[];
-    let turnstileToken = "";
+    const SITE_KEY = "0x4AAAAAACiAiEmo3_WVLol_"; // Your Site Key
+
+    let chatHistory = [];
+    let widgetId = null; // We will store the Turnstile ID here
     
     const inputEl = document.getElementById('user-input');
     const sendBtn = document.getElementById('send-btn');
     const clearBtn = document.getElementById('clear-btn');
     const historyEl = document.getElementById('chat-history');
 
-    // --- FIX: Aggressive Focus Logic ---
-    function onTurnstileSuccess(token) {
-        turnstileToken = token;
-        
-        // Attempt 1: Focus immediately
-        inputEl.focus();
+    // 3. EXPLICIT RENDER FUNCTION (Runs automatically when API loads)
+    window.onloadTurnstileCallback = function () {
+        widgetId = turnstile.render('#turnstile-widget', {
+            sitekey: SITE_KEY,
+            callback: handleTurnstileToken, // This runs ONLY after execute() succeeds
+            execution: 'execute',          // MANUAL MODE: Waits for us to call .execute()
+            appearance: 'interaction-only' // Hides it as much as possible
+        });
+    };
 
-        // Attempt 2: Force focus again after 600ms 
-        // This overrides the Turnstile iframe if it steals focus late
-        setTimeout(() => {
-            inputEl.focus();
-        }, 600);
-    }
-
-    function addMessage(role, text) {
-        const div = document.createElement('div');
-        div.className = `message ${role === 'user' ? 'user-msg' : 'ai-msg'}`;
-        div.innerHTML = text.replace(/\n/g, '<br>'); 
-        historyEl.appendChild(div);
-        historyEl.scrollTop = historyEl.scrollHeight;
-    }
-    
-    function clearChat() {
-        chatHistory = [];
-        historyEl.innerHTML = '<div class="message ai-msg">Chat cleared. How else can I help?</div>';
-        // Resetting will trigger onTurnstileSuccess, which handles the focus
-        if (typeof turnstile !== 'undefined') turnstile.reset();
-    }
-
-    clearBtn.addEventListener('click', clearChat);
-    
-    sendBtn.addEventListener('click', async () => {
+    // 4. THIS RUNS ONLY AFTER TOKEN IS GENERATED
+    async function handleTurnstileToken(token) {
         const text = inputEl.value.trim();
-
-        if (!turnstileToken) {
-            alert("Still verifying security... please click Send again in a second.");
-            return;
-        }
-        if (!text) return;
+        if (!text) return; // Should not happen given logic below, but safety first
 
         addMessage('user', text);
         chatHistory.push({ role: "user", content: text });
@@ -128,7 +101,7 @@
                 },
                 body: JSON.stringify({
                     messages: chatHistory,
-                    turnstileToken: turnstileToken
+                    turnstileToken: token
                 })
             });
 
@@ -148,30 +121,62 @@
             addMessage('assistant', `❌ Connection Error: ${error.message}`);
             chatHistory.pop(); 
         } finally {
+            // 5. CLEANUP & REFOCUS
             sendBtn.innerText = "Send";
             inputEl.disabled = false;
             sendBtn.disabled = false;
             clearBtn.disabled = false;
             
-            // Clear token and reset widget
-            turnstileToken = "";
-            if (typeof turnstile !== 'undefined') {
-                turnstile.reset();
-            }
-            // Note: We don't need explicit focus here because 
-            // turnstile.reset() triggers onTurnstileSuccess, 
-            // which runs the Double Tap focus logic above.
+            // Reset the widget so it's ready for the next message
+            if (widgetId !== null) turnstile.reset(widgetId);
+            
+            // Force focus back to input
+            inputEl.focus();
         }
-    });
+    }
+
+    function addMessage(role, text) {
+        const div = document.createElement('div');
+        div.className = `message ${role === 'user' ? 'user-msg' : 'ai-msg'}`;
+        div.innerHTML = text.replace(/\n/g, '<br>'); 
+        historyEl.appendChild(div);
+        historyEl.scrollTop = historyEl.scrollHeight;
+    }
+    
+    function clearChat() {
+        chatHistory = [];
+        historyEl.innerHTML = '<div class="message ai-msg">Chat cleared. How else can I help?</div>';
+        if (widgetId !== null) turnstile.reset(widgetId);
+        inputEl.focus();
+    }
+
+    // 6. BUTTON TRIGGER
+    async function handleSendClick() {
+        const text = inputEl.value.trim();
+        if (!text) return;
+
+        // Disable input immediately to prevent double-send
+        sendBtn.disabled = true;
+        
+        // EXECUTE TURNSTILE MANUALY
+        // This triggers the challenge -> then calls 'handleTurnstileToken'
+        if (widgetId !== null) {
+            turnstile.execute(widgetId);
+        } else {
+            alert("Security widget loading... please try again.");
+            sendBtn.disabled = false;
+        }
+    }
+
+    sendBtn.addEventListener('click', handleSendClick);
+    clearBtn.addEventListener('click', clearChat);
 
     inputEl.addEventListener('keypress', function (e) {
-        if (e.key === 'Enter' && !sendBtn.disabled) sendBtn.click();
+        if (e.key === 'Enter' && !sendBtn.disabled) handleSendClick();
     });
 
-    // Force focus on initial page load
-    window.onload = function() {
-        setTimeout(() => inputEl.focus(), 500);
-    };
+    // Initial focus
+    inputEl.focus();
 </script>
 
 </body>
