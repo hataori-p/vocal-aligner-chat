@@ -2,41 +2,122 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>VocalAlignerGUI Demo</title>
+    <title>VocalAlignerGUI — Demo</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #ffffff;
+        --fg: #1f2328;
+        --muted: #6e7781;
+        --card: #f6f8fa;
+        --border: #d0d7de;
+        --link: #0969da;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0d1117;
+          --fg: #e6edf3;
+          --muted: #8b949e;
+          --card: #161b22;
+          --border: #30363d;
+          --link: #4493f8;
+        }
+      }
+
+      html, body {
+        height: 100%;
+      }
       body {
-        margin: 2rem;
-        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-        line-height: 1.4;
+        margin: 0;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+        line-height: 1.55;
       }
       .wrap {
-        max-width: 900px;
+        max-width: 960px;
+        padding: 24px;
         margin: 0 auto;
+      }
+      header {
+        margin: 12px 0 20px;
+      }
+      h1 {
+        font-weight: 700;
+        font-size: clamp(1.4rem, 2vw + 1rem, 2rem);
+        margin: 0 0 8px;
+      }
+      .muted {
+        color: var(--muted);
+        margin: 0 0 20px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 16px;
       }
       .player {
         width: 100%;
         max-width: 800px;
         display: block;
-        margin: 1rem 0;
         background: #000;
+        border-radius: 10px;
+        margin: 0 auto;
+      }
+      .actions {
+        margin-top: 12px;
+        text-align: center;
+      }
+      .actions a {
+        color: var(--link);
+        text-decoration: none;
+        border: 1px solid var(--border);
+        padding: 8px 12px;
+        border-radius: 8px;
+        display: inline-block;
+        background: transparent;
+      }
+      .actions a:hover {
+        text-decoration: underline;
+      }
+      footer {
+        margin: 28px 0 8px;
+        font-size: 0.95rem;
+        color: var(--muted);
+      }
+      /* Keep the video sharp on HiDPI */
+      video {
+        image-rendering: auto;
       }
     </style>
   </head>
   <body>
-    <main class="wrap">
-      <h1>VocalAlignerGUI — Demo</h1>
-      <p>Short demo video hosted as a GitHub Release asset.</p>
+    <div class="wrap">
+      <header>
+        <h1>VocalAlignerGUI — Demo Video</h1>
+        <p class="muted">Short demonstration video hosted as a GitHub Release asset.</p>
+      </header>
 
-      <video class="player" controls playsinline preload="metadata" poster="thumbnail.jpg">
-        <source src="https://github.com/hataori-p/VocalAlignerGUI/releases/download/v0.1.1-alpha/vocaliner_intro.mp4" type="video/mp4" />
-        Your browser does not support HTML5 video. 
-        <a href="https://github.com/hataori-p/VocalAlignerGUI/releases/download/v0.1.1-alpha/vocaliner_intro.mp4">Download the MP4</a>.
-      </video>
+      <section class="card" aria-label="Demo player">
+        <video
+          class="player"
+          controls
+          playsinline
+          preload="metadata"
+          poster="thumbnail.jpg"
+        >
+          <source src="https://github.com/hataori-p/VocalAlignerGUI/releases/download/v0.1.1-alpha/vocaliner_intro.mp4" type="video/mp4" />
+          Your browser does not support HTML5 video.
+        </video>
 
-      <p>
-        If playback doesn’t start, use the download link above.
-      </p>
-    </main>
+        <div class="actions">
+          <a href="https://github.com/hataori-p/VocalAlignerGUI/releases/download/v0.1.1-alpha/vocaliner_intro.mp4">
+            📥 Download MP4 (81&nbsp;MB)
+          </a>
+        </div>
+      </section>
+    </div>
   </body>
 </html>
